@@ -1,0 +1,18 @@
+name: Impediment / Blocker
+description: Log a sprint blocker or dependency issue
+title: "[Impediment]: "
+labels: ["impediment"]
+body:
+  - type: input
+    id: task_id
+    attributes:
+      label: Blocked Task ID(s)
+      placeholder: e.g., S1-DEV-02
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Blocker Details
+    validations:
+      required: true
