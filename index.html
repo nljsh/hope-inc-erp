@@ -1,0 +1,107 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hope Enterprise — Quiet Clarity for Complex Operations</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="src/assets/css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="#" class="brand">
+        <span class="brand-serif">Hope</span>
+        <span class="brand-sans">ENTERPRISE</span>
+      </a>
+      <nav class="topbar-nav">
+        <button type="button" class="nav-link" data-auth-switch="signin">Sign In</button>
+        <button type="button" class="nav-btn-outline" data-auth-switch="register">Register</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="hero-layout">
+    <section class="editorial-column">
+      <div class="status-pill">
+        <span class="status-dot"></span>
+        <span>SYSTEM VERSION 3.2 &middot; ACTIVE</span>
+      </div>
+
+      <h1 class="editorial-heading">
+        Quiet clarity for <em>complex operations.</em>
+      </h1>
+
+      <p class="editorial-lead">
+        Unifying customer lifecycles, products, employee registries, and sales ledgers in a disciplined workspace.
+      </p>
+
+      <ul class="editorial-list">
+        <li>Integrated PostgreSQL core powered by Supabase</li>
+        <li>End-to-end user session encryption and verification</li>
+        <li>Synchronized audit stamps and historical data logs</li>
+      </ul>
+    </section>
+
+    <section class="auth-column">
+      <div class="auth-card">
+        <div class="auth-tabs" role="tablist">
+          <button type="button" class="auth-tab active" data-auth-switch="signin">Sign In</button>
+          <button type="button" class="auth-tab" data-auth-switch="register">Register</button>
+        </div>
+
+        <!-- Sign In Form -->
+        <form id="signin-form" class="auth-form active" novalidate>
+          <div class="field-group">
+            <label for="signin-email">EMAIL ADDRESS</label>
+            <input type="email" id="signin-email" name="email" autocomplete="email" required />
+          </div>
+
+          <div class="field-group">
+            <div class="label-row">
+              <label for="signin-password">PASSWORD</label>
+              <a href="#forgot" class="forgot-link">Forgot password?</a>
+            </div>
+            <input type="password" id="signin-password" name="password" autocomplete="current-password" required />
+          </div>
+
+          <button type="submit" class="btn-primary">Authenticate</button>
+
+          <p class="auth-footer-note">
+            Need an account? <button type="button" class="inline-link" data-auth-switch="register">Register here</button>
+          </p>
+        </form>
+
+        <!-- Register Form -->
+        <form id="register-form" class="auth-form" novalidate>
+          <div class="field-group">
+            <label for="register-name">FULL NAME</label>
+            <input type="text" id="register-name" name="full_name" autocomplete="name" required />
+          </div>
+
+          <div class="field-group">
+            <label for="register-email">EMAIL ADDRESS</label>
+            <input type="email" id="register-email" name="email" autocomplete="email" required />
+          </div>
+
+          <div class="field-group">
+            <label for="register-password">PASSWORD</label>
+            <input type="password" id="register-password" name="password" autocomplete="new-password" required />
+          </div>
+
+          <button type="submit" class="btn-primary">Create Operator Account</button>
+
+          <p class="auth-footer-note">
+            Already provisioned? <button type="button" class="inline-link" data-auth-switch="signin">Sign in here</button>
+          </p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bottom-rule"></footer>
+  <script src="src/assets/js/ui-auth-tabs.js"></script>
+</body>
+</html>
