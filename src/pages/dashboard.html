@@ -1,0 +1,87 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hope Enterprise — Operations Workspace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/css/styles.css" />
+  <link rel="stylesheet" href="../assets/css/dashboard.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="dashboard.html" class="brand">
+        <span class="brand-serif">Hope</span>
+        <span class="brand-sans">ENTERPRISE</span>
+      </a>
+      <div class="topbar-nav">
+        <span id="operator-badge" class="operator-pill">OPERATOR &middot; VERIFIED</span>
+        <button type="button" id="signout-btn" class="nav-btn-outline">Sign Out</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="workspace-shell">
+    <aside class="workspace-sidebar" aria-label="ERP Modules">
+      <div class="sidebar-section-label">OPERATIONS LEDGER</div>
+      <nav class="sidebar-nav">
+        <button type="button" class="sidebar-link active" data-module="overview">Executive Overview</button>
+        <button type="button" class="sidebar-link" data-module="customers">Customer Lifecycles</button>
+        <button type="button" class="sidebar-link" data-module="products">Product Catalog</button>
+        <button type="button" class="sidebar-link" data-module="employees">Employee Registries</button>
+        <button type="button" class="sidebar-link" data-module="sales">Sales Ledgers</button>
+      </nav>
+    </aside>
+
+    <main class="workspace-main">
+      <div class="workspace-header">
+        <div>
+          <div class="status-pill">
+            <span class="status-dot"></span>
+            <span>CORE ENGINE &middot; AWAITING POSTGRESQL BINDING</span>
+          </div>
+          <h1 id="module-title" class="workspace-title">Executive <em>Overview.</em></h1>
+        </div>
+      </div>
+
+      <section class="kpi-grid" aria-label="Module Readiness Summary">
+        <article class="kpi-card">
+          <span class="kpi-label">CUSTOMER LIFECYCLES</span>
+          <strong class="kpi-value">Schema Pending</strong>
+          <p class="kpi-meta">Awaiting S1-DB table provisioning</p>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">PRODUCT CATALOG</span>
+          <strong class="kpi-value">Schema Pending</strong>
+          <p class="kpi-meta">Awaiting S1-DB table provisioning</p>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">EMPLOYEE REGISTRIES</span>
+          <strong class="kpi-value">Schema Pending</strong>
+          <p class="kpi-meta">Awaiting S1-DB table provisioning</p>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">SALES LEDGERS</span>
+          <strong class="kpi-value">Schema Pending</strong>
+          <p class="kpi-meta">Awaiting S1-DB table provisioning</p>
+        </article>
+      </section>
+
+      <section class="ledger-panel">
+        <div class="ledger-panel-header">
+          <h2 id="panel-heading">Active Audit Stream</h2>
+          <span class="ledger-tag">READ-ONLY SHELL</span>
+        </div>
+        <p id="panel-description" class="ledger-empty-copy">
+          Session guard active. Once the Database Administrator completes the PostgreSQL schema and Row-Level Security policies in Supabase, live CRUD records will mount directly into this workspace.
+        </p>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="../assets/js/session-guard.js"></script>
+</body>
+</html>
