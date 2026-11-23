@@ -219,3 +219,63 @@ export function updatePriceHistoryEntry(history = [], entryId, updates = {}, act
 export function deletePriceHistoryEntry(history = [], entryId) {
   return history.filter((item) => item.id !== entryId);
 }
+
+// S2-DEV-08: Current-price display on product page; per-action rights checks (Add/Edit/Delete) across both modules
+export function getCurrentPriceEntry(history = [], asOfDate = new Date()) {
+  const targetTime = new Date(asOfDate).getTime();
+  if (Number.isNaN(targetTime) || !Array.isArray(history)) return null;
+
+  const eligible = history
+    .filter((entry) => {
+      const effTime = new Date(entry.effective_date ?? entry.effectiveDate).getTime();
+      return !Number.isNaN(effTime) && effTime <= targetTime;
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.effective_date ?? b.effectiveDate) -
+        new Date(a.effective_date ?? a.effectiveDate)
+    );
+
+  return eligible[0] ?? null;
+}
+
+export function formatPriceDisplay(priceEntry, fallback = 'No active price') {
+  if (!priceEntry) return fallback;
+  const amount = Number(priceEntry.price ?? priceEntry.amount);
+  if (Number.isNaN(amount)) return fallback;
+  const currency = priceEntry.currency || 'PHP';
+  return `${currency} ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function renderCurrentPriceOnPage(targetEl, history = [], asOfDate = new Date()) {
+  if (!targetEl) return null;
+  const activePrice = getCurrentPriceEntry(history, asOfDate);
+  targetEl.textContent = formatPriceDisplay(activePrice);
+  return activePrice;
+}
+
+export function canPerformModuleAction(sessionUser, moduleName, action) {
+  if (!sessionUser) return false;
+  const role = String(sessionUser.role || '').toLowerCase();
+  if (role === 'superadmin') return true;
+
+  const mod = String(moduleName || '').trim().toLowerCase();
+  const act = String(action || '').trim().toLowerCase();
+  const rights = Array.isArray(sessionUser.permissions)
+    ? sessionUser.permissions.map((r) => String(r).toLowerCase())
+    : [];
+
+  if (
+    rights.includes(`${mod}.${act}`) ||
+    rights.includes(`${mod}:${act}`) ||
+    rights.includes(`${mod}_${act}`)
+  ) {
+    return true;
+  }
+
+  if (role === 'admin' && ['view', 'add', 'edit', 'delete', 'create', 'update'].includes(act)) {
+    return true;
+  }
+
+  return false;
+}
