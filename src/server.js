@@ -2,6 +2,7 @@ require('dotenv').config();
 const path = require('path');
 const express = require('express');
 const { Pool } = require('pg');
+const { createSuperadminRouter } = require('./routes/superadmin');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -48,6 +49,8 @@ app.get('/api/health', async (_req, res) => {
     res.status(500).json({ ok: false, error: 'Database connection failed' });
   }
 });
+
+app.use('/api/superadmin', createSuperadminRouter({ pool, withAuditUser }));
 
 app.listen(port, () => {
   console.log(`Hope ERP server running at http://localhost:${port}`);
