@@ -386,23 +386,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const catalog = data.catalog || [];
     const isSuperadmin = currentRole === 'superadmin';
 
-    const roleSelectOptions = isSuperadmin
-      ? '<option value="user">user</option><option value="admin">admin</option><option value="superadmin">superadmin</option>'
-      : '<option value="user">user</option>';
-
-    const addFormHtml = `
-      <form id="add-user-form" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.6rem;margin-bottom:1rem;padding:0.85rem;border:1px solid #23252C;border-radius:8px;background:#111318;">
-        <input type="text" id="new-user-name" placeholder="Full Name" required style="padding:0.5rem;border-radius:6px;border:1px solid #2B2E38;background:#181B22;color:#F3F4F6;" />
-        <input type="email" id="new-user-email" placeholder="Email Address" required style="padding:0.5rem;border-radius:6px;border:1px solid #2B2E38;background:#181B22;color:#F3F4F6;" />
-        <input type="password" id="new-user-password" placeholder="Initial Password (min 6)" minlength="6" style="padding:0.5rem;border-radius:6px;border:1px solid #2B2E38;background:#181B22;color:#F3F4F6;" />
-        <select id="new-user-role" style="padding:0.5rem;border-radius:6px;border:1px solid #2B2E38;background:#181B22;color:#F3F4F6;">
-          ${roleSelectOptions}
-        </select>
-        <button type="submit" class="btn-primary" style="padding:0.5rem 0.85rem;">Add User</button>
-      </form>
-      <div id="um-feedback" style="font-size:0.8rem;margin-bottom:0.75rem;color:#6EE7B7;"></div>
-    `;
-
     const roleLabels = {
       superadmin: 'Make Superadmin',
       admin: 'Make Admin',
@@ -456,7 +439,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       .join('');
 
     tableContainer.innerHTML = `
-      ${addFormHtml}
+      <div id="um-feedback" style="font-size:0.8rem;margin-bottom:0.75rem;color:#6EE7B7;"></div>
       <table style="width:100%;border-collapse:collapse;">
         <thead>
           <tr>
@@ -477,24 +460,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       feedbackEl.style.color = isErr ? '#FCA5A5' : '#6EE7B7';
       feedbackEl.textContent = msg;
     }
-
-    document.getElementById('add-user-form')?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fullName = document.getElementById('new-user-name').value.trim();
-      const email = document.getElementById('new-user-email').value.trim();
-      const password = document.getElementById('new-user-password').value;
-      const role = document.getElementById('new-user-role').value;
-
-      const r = await fetch('/api/admin/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-actor-email': activeEmail },
-        body: JSON.stringify({ full_name: fullName, email, password: password || undefined, role }),
-      });
-      const d = await r.json();
-      if (!r.ok || !d.ok) return setUmMsg(d.error || 'Could not add user.', true);
-      await renderUserManagement();
-      setUmMsg(`Added operator ${d.user.email}.`);
-    });
 
     tableContainer.querySelectorAll('.um-approve-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
