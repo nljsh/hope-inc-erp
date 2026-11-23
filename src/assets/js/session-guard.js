@@ -1,31 +1,31 @@
-﻿// S1-DEV-04: Hope Enterprise — Workspace Session Guard & Module Navigation
+﻿// S1-DEV-04 & S2-DEV-02: Hope Enterprise — Workspace Session Guard & Module Navigation
 import { supabaseClient } from '../../config/supabaseClient.js';
 
 const MODULE_META = {
   overview: {
     title: 'Executive <em>Overview.</em>',
     panel: 'Active Audit Stream',
-    desc: 'Session guard active. Once the Database Administrator completes the PostgreSQL schema and Row-Level Security policies in Supabase, live CRUD records will mount directly into this workspace.'
+    desc: 'Live Supabase session active. Connected to the Hope Enterprise PostgreSQL schema with soft-delete views and append-only audit_log tracking.'
   },
   customers: {
     title: 'Customer <em>Lifecycles.</em>',
     panel: 'Customer Registry',
-    desc: 'Ready to bind to the public.customers PostgreSQL table upon DB Admin schema completion.'
+    desc: 'Bound to public.customer and customer_active (COD, 30D, 45D payment terms).'
   },
   products: {
     title: 'Product <em>Catalog.</em>',
     panel: 'Inventory & SKU Master',
-    desc: 'Ready to bind to the public.products PostgreSQL table upon DB Admin schema completion.'
+    desc: 'Bound to public.product, product_active, and pricehist effective pricing.'
   },
   employees: {
     title: 'Employee <em>Registries.</em>',
     panel: 'Personnel & Role Directory',
-    desc: 'Ready to bind to the public.employees PostgreSQL table upon DB Admin schema completion.'
+    desc: 'Bound to public.employee, employee_active, department, job, and jobhistory.'
   },
   sales: {
     title: 'Sales <em>Ledgers.</em>',
     panel: 'Transaction & Invoice Ledger',
-    desc: 'Ready to bind to the public.sales PostgreSQL table upon DB Admin schema completion.'
+    desc: 'Bound to public.sales, salesdetail, and payment records.'
   }
 };
 
@@ -37,7 +37,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const panelHeading = document.getElementById('panel-heading');
   const panelDescription = document.getElementById('panel-description');
 
-  // Verify active session (Supabase Auth or pre-DB session fallback)
   let activeEmail = null;
   if (supabaseClient) {
     const { data } = await supabaseClient.auth.getSession();
@@ -58,7 +57,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     operatorBadge.textContent = activeEmail.toUpperCase();
   }
 
-  // Module switching
   navButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       const key = btn.dataset.module;
@@ -71,7 +69,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  // Sign out handler
   if (signoutBtn) {
     signoutBtn.addEventListener('click', async () => {
       sessionStorage.removeItem('hope_erp_demo_user');
