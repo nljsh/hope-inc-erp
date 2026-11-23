@@ -1,9 +1,8 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 const path = require('path');
 const express = require('express');
 const { Pool } = require('pg');
-const { createSuperadminRouter } = require('./routes/superadmin');
-const { createRightsRouter } = require('./routes/rights');
+const { createAdminRouter } = require('./routes/admin');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -51,8 +50,7 @@ app.get('/api/health', async (_req, res) => {
   }
 });
 
-app.use('/api/superadmin', createSuperadminRouter({ pool, withAuditUser }));
-app.use('/api/rights', createRightsRouter({ pool, withAuditUser }));
+app.use('/api/admin', createAdminRouter({ pool, withAuditUser }));
 
 app.listen(port, () => {
   console.log(`Hope ERP server running at http://localhost:${port}`);

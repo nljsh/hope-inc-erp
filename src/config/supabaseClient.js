@@ -1,16 +1,19 @@
-﻿// S2-DEV-01: Hope Enterprise — Live Supabase Client Binding
-const SUPABASE_CONFIG = {
-  url: window.HOPE_ENV?.SUPABASE_URL || 'https://your-project-id.supabase.co',
-  anonKey: window.HOPE_ENV?.SUPABASE_ANON_KEY || 'your-public-anon-key-here'
-};
+﻿const env = typeof window !== 'undefined' ? (window.HOPE_ENV || {}) : {};
+const supabaseUrl = String(env.SUPABASE_URL || '').trim();
+const supabaseAnonKey = String(env.SUPABASE_ANON_KEY || '').trim();
 
-const isConfigured =
-  SUPABASE_CONFIG.url.startsWith('https://') &&
-  !SUPABASE_CONFIG.url.includes('your-project-id') &&
-  !SUPABASE_CONFIG.anonKey.includes('your-public-anon-key');
+const createClientFn =
+  typeof window !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function'
+    ? window.supabase.createClient
+    : null;
 
-const supabaseClient = (typeof window.supabase !== 'undefined' && isConfigured)
-  ? window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey)
-  : null;
-
-export { SUPABASE_CONFIG, supabaseClient };
+export const supabaseClient =
+  createClientFn && supabaseUrl && supabaseAnonKey
+    ? createClientFn(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      })
+    : null;
