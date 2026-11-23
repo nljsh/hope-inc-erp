@@ -961,3 +961,253 @@ export async function setEmployeeDeleted(
 export async function restoreEmployee(supabaseClient, empno, sessionUser = null) {
   return setEmployeeDeleted(supabaseClient, empno, false, sessionUser);
 }
+
+// S3-DEV-06: Job history add, edit and delete promotion or transfer (permission-checked)
+
+export function canManageJobHistory(sessionUser, action = 'edit') {
+  if (!sessionUser) return false;
+  const role = String(sessionUser.role || '').toLowerCase();
+  const rights = Array.isArray(sessionUser.permissions) ? sessionUser.permissions : [];
+  const normalizedAction = String(action || '').toLowerCase();
+  const candidates = [
+    `jobhistory.${normalizedAction}`,
+    `JobHistory.${normalizedAction[0]?.toUpperCase() || ''}${normalizedAction.slice(1)}`,
+    `job_history.${normalizedAction}`,
+    `hr.jobhistory.${normalizedAction}`,
+    `hr.${normalizedAction}`
+  ];
+  return (
+    role === 'superadmin' ||
+    role === 'admin' ||
+    rights.some((r) => candidates.includes(String(r)))
+  );
+}
+
+export function validateJobHistoryPayload(input = {}, { isUpdate = false } = {}) {
+  const errors = {};
+
+  const empno = String(input.empno ?? input.empNo ?? '').trim();
+  const jobcode = String(input.jobcode ?? input.jobCode ?? '').trim().toUpperCase();
+  const effdate = String(input.effdate ?? input.effDate ?? '').trim();
+  const rawSalary = input.salary;
+  const salary =
+    rawSalary === '' || rawSalary === null || rawSalary === undefined
+      ? Number.NaN
+      : Number(rawSalary);
+  const rawDept = input.deptcode ?? input.deptCode ?? '';
+  const deptcode = String(rawDept).trim().toUpperCase();
+
+  if (!isUpdate && !empno) {
+    errors.empno = 'Employee number is required.';
+  } else if (empno && empno.length > 5) {
+    errors.empno = 'Employee number must be 5 characters or fewer.';
+  }
+
+  if (!isUpdate && !jobcode) {
+    errors.jobcode = 'Job code is required.';
+  } else if (jobcode && jobcode.length > 4) {
+    errors.jobcode = 'Job code must be 4 characters or fewer.';
+  }
+
+  if (!isUpdate && !isValidIsoDate(effdate)) {
+    errors.effdate = 'Valid effective date (YYYY-MM-DD) is required.';
+  } else if (isUpdate && effdate && !isValidIsoDate(effdate)) {
+    errors.effdate = 'Effective date must be a valid date (YYYY-MM-DD).';
+  }
+
+  if (!Number.isFinite(salary) || salary < 0) {
+    errors.salary = 'Salary must be a valid non-negative number.';
+  }
+
+  if (deptcode && deptcode.length > 4) {
+    errors.deptcode = 'Department code must be 4 characters or fewer.';
+  }
+
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors,
+    value: {
+      empno,
+      jobcode,
+      effdate,
+      salary: Number.isFinite(salary) ? Number(salary.toFixed(2)) : null,
+      deptcode: deptcode || null
+    }
+  };
+}
+
+export function hasDuplicateEffectiveDate(entries = [], empno, effdate, excludeKey = null) {
+  const targetEmp = String(empno || '').trim();
+  const targetDate = String(effdate || '').trim();
+  if (!targetEmp || !targetDate) return false;
+
+  return entries.some((item) => {
+    const itemEmp = String(item.empno ?? item.empNo ?? '').trim();
+    const itemDate = String(item.effdate ?? item.effDate ?? '').trim();
+    const itemJob = String(item.jobcode ?? item.jobCode ?? '').trim().toUpperCase();
+    const key = `${itemEmp}|${itemJob}|${itemDate}`;
+    if (excludeKey && key === excludeKey) return false;
+    return itemEmp === targetEmp && itemDate === targetDate;
+  });
+}
+
+export function renderJobHistoryRows(tbodyEl, entries = [], { allowManage = false } = {}) {
+  if (!tbodyEl) return;
+
+  if (!entries.length) {
+    tbodyEl.innerHTML = `
+      <tr>
+        <td colspan="6" class="empty-state">No job history records found.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbodyEl.innerHTML = entries
+    .map((row) => {
+      const empno = String(row.empno ?? row.empNo ?? '');
+      const jobcode = String(row.jobcode ?? row.jobCode ?? '');
+      const effdate = String(row.effdate ?? row.effDate ?? '');
+      const deptcode = String(row.deptcode ?? row.deptCode ?? '');
+      const salaryNum = Number(row.salary ?? 0);
+      const salaryText = Number.isFinite(salaryNum) ? salaryNum.toFixed(2) : '0.00';
+
+      const actionsHtml = allowManage
+        ? `
+          <button type="button" class="btn-edit-jh" data-empno="${empno}" data-jobcode="${jobcode}" data-effdate="${effdate}">Edit</button>
+          <button type="button" class="btn-delete-jh" data-empno="${empno}" data-jobcode="${jobcode}" data-effdate="${effdate}">Delete</button>
+        `
+        : '<span class="muted">View only</span>';
+
+      return `
+        <tr data-empno="${empno}" data-jobcode="${jobcode}" data-effdate="${effdate}">
+          <td>${effdate}</td>
+          <td>${jobcode}</td>
+          <td>${deptcode || '—'}</td>
+          <td>${salaryText}</td>
+          <td>${empno}</td>
+          <td class="actions-cell">${actionsHtml}</td>
+        </tr>
+      `;
+    })
+    .join('');
+}
+
+export async function listJobHistory(supabaseClient, empno = null) {
+  if (!supabaseClient) {
+    throw new Error('Supabase client is required to list job history.');
+  }
+
+  let query = supabaseClient
+    .from('jobhistory')
+    .select('empno, jobcode, effdate, salary, deptcode')
+    .order('effdate', { ascending: false });
+
+  if (empno) {
+    query = query.eq('empno', String(empno).trim());
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function addJobHistoryEntry(supabaseClient, payload, sessionUser = null) {
+  if (!canManageJobHistory(sessionUser, 'add') && !canManageJobHistory(sessionUser, 'create')) {
+    throw new Error('You do not have permission to add job history records.');
+  }
+
+  const check = validateJobHistoryPayload(payload, { isUpdate: false });
+  if (!check.valid) {
+    const err = new Error('Invalid job history input.');
+    err.validationErrors = check.errors;
+    throw err;
+  }
+
+  const { data, error } = await supabaseClient
+    .from('jobhistory')
+    .insert({
+      empno: check.value.empno,
+      jobcode: check.value.jobcode,
+      effdate: check.value.effdate,
+      salary: check.value.salary,
+      deptcode: check.value.deptcode
+    })
+    .select('empno, jobcode, effdate, salary, deptcode')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateJobHistoryEntry(
+  supabaseClient,
+  key = {},
+  payload = {},
+  sessionUser = null
+) {
+  if (!canManageJobHistory(sessionUser, 'edit')) {
+    throw new Error('You do not have permission to update job history records.');
+  }
+
+  const empno = String(key.empno ?? key.empNo ?? '').trim();
+  const jobcode = String(key.jobcode ?? key.jobCode ?? '').trim().toUpperCase();
+  const effdate = String(key.effdate ?? key.effDate ?? '').trim();
+
+  if (!empno || !jobcode || !effdate) {
+    throw new Error('Employee number, job code, and effective date are required to update job history.');
+  }
+
+  const check = validateJobHistoryPayload(
+    { ...payload, empno, jobcode, effdate },
+    { isUpdate: true }
+  );
+  if (!check.valid) {
+    const err = new Error('Invalid job history input.');
+    err.validationErrors = check.errors;
+    throw err;
+  }
+
+  const nextEffDate = check.value.effdate || effdate;
+  const { data, error } = await supabaseClient
+    .from('jobhistory')
+    .update({
+      effdate: nextEffDate,
+      salary: check.value.salary,
+      deptcode: check.value.deptcode
+    })
+    .eq('empno', empno)
+    .eq('jobcode', jobcode)
+    .eq('effdate', effdate)
+    .select('empno, jobcode, effdate, salary, deptcode')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteJobHistoryEntry(supabaseClient, key = {}, sessionUser = null) {
+  if (!canManageJobHistory(sessionUser, 'delete')) {
+    throw new Error('You do not have permission to delete job history records.');
+  }
+
+  const empno = String(key.empno ?? key.empNo ?? '').trim();
+  const jobcode = String(key.jobcode ?? key.jobCode ?? '').trim().toUpperCase();
+  const effdate = String(key.effdate ?? key.effDate ?? '').trim();
+
+  if (!empno || !jobcode || !effdate) {
+    throw new Error('Employee number, job code, and effective date are required to delete job history.');
+  }
+
+  const { data, error } = await supabaseClient
+    .from('jobhistory')
+    .delete()
+    .eq('empno', empno)
+    .eq('jobcode', jobcode)
+    .eq('effdate', effdate)
+    .select('empno, jobcode, effdate, salary, deptcode')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
