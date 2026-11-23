@@ -1,4 +1,4 @@
-﻿// S1-DEV-03: Hope Enterprise — Client-Side Authentication Service & Validation
+﻿// S1-DEV-03 & S2-DEV-02: Hope Enterprise — Client-Side Authentication Service & Validation
 import { supabaseClient } from '../../config/supabaseClient.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function showFeedback(form, message, type = 'info') {
+    if (!form) return;
     const banner = ensureFeedbackBanner(form);
     banner.textContent = message;
     banner.style.display = 'block';
