@@ -71,3 +71,54 @@ export function renderProductRows(tbodyEl, products = []) {
     )
     .join('');
 }
+
+// S2-DEV-05: Product create and edit form
+export function validateProductForm(values = {}) {
+  const errors = {};
+  const name = String(values.name || '').trim();
+  const code = String(values.code ?? values.sku ?? '').trim();
+  const unit = String(values.unit || '').trim();
+
+  if (!name) {
+    errors.name = 'Product name is required.';
+  }
+
+  if (!code) {
+    errors.code = 'Product code or SKU is required.';
+  }
+
+  if (!unit) {
+    errors.unit = 'Unit of measure is required.';
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors
+  };
+}
+
+export function buildProductPayload(values = {}, existingProduct = null) {
+  return {
+    id: existingProduct?.id ?? values.id ?? undefined,
+    code: String(values.code ?? values.sku ?? existingProduct?.code ?? '').trim(),
+    name: String(values.name || '').trim(),
+    description: String(values.description ?? existingProduct?.description ?? '').trim(),
+    unit: String(values.unit ?? existingProduct?.unit ?? '').trim(),
+    status: String(values.status ?? existingProduct?.status ?? 'Active').trim()
+  };
+}
+
+export function populateProductForm(formEl, product = {}) {
+  if (!formEl) return;
+
+  const setField = (selector, value) => {
+    const el = formEl.querySelector(selector);
+    if (el) el.value = value ?? '';
+  };
+
+  setField('[name="code"]', product.code ?? product.sku ?? '');
+  setField('[name="name"]', product.name ?? '');
+  setField('[name="description"]', product.description ?? '');
+  setField('[name="unit"]', product.unit ?? '');
+  setField('[name="status"]', product.status ?? 'Active');
+}
