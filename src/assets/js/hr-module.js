@@ -833,3 +833,131 @@ export async function updateEmployee(supabaseClient, empno, payload, sessionUser
   if (error) throw error;
   return data;
 }
+
+// S3-DEV-05: Employee soft delete/restore and separation date (permission-checked)
+
+export function validateSeparationDate(sepdate, hiredate = null) {
+  const value = String(sepdate || '').trim();
+  if (!isValidIsoDate(value)) {
+    return {
+      valid: false,
+      error: 'Valid separation date (YYYY-MM-DD) is required.',
+      value: null
+    };
+  }
+
+  if (hiredate && isValidIsoDate(hiredate) && value < String(hiredate).trim()) {
+    return {
+      valid: false,
+      error: 'Separation date cannot be earlier than hire date.',
+      value: null
+    };
+  }
+
+  return {
+    valid: true,
+    error: null,
+    value
+  };
+}
+
+export async function setEmployeeSeparation(
+  supabaseClient,
+  empno,
+  sepdate,
+  sessionUser = null,
+  hiredate = null
+) {
+  if (!canManageEmployees(sessionUser, 'edit')) {
+    throw new Error('You do not have permission to update employee separation dates.');
+  }
+
+  const normalizedEmpno = String(empno || '').trim();
+  if (!normalizedEmpno) {
+    throw new Error('Employee number is required.');
+  }
+
+  let effectiveHireDate = hiredate;
+  if (!effectiveHireDate) {
+    const { data: existing, error: fetchError } = await supabaseClient
+      .from('employee')
+      .select('hiredate')
+      .eq('empno', normalizedEmpno)
+      .single();
+    if (fetchError) throw fetchError;
+    effectiveHireDate = existing?.hiredate ?? null;
+  }
+
+  const check = validateSeparationDate(sepdate, effectiveHireDate);
+  if (!check.valid) {
+    const err = new Error(check.error);
+    err.validationErrors = { sepdate: check.error };
+    throw err;
+  }
+
+  const { data, error } = await supabaseClient
+    .from('employee')
+    .update({ sepdate: check.value })
+    .eq('empno', normalizedEmpno)
+    .select('empno, lastname, firstname, gender, birthdate, hiredate, sepdate, is_deleted, stamp')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function clearEmployeeSeparation(supabaseClient, empno, sessionUser = null) {
+  if (!canManageEmployees(sessionUser, 'edit')) {
+    throw new Error('You do not have permission to clear employee separation dates.');
+  }
+
+  const normalizedEmpno = String(empno || '').trim();
+  if (!normalizedEmpno) {
+    throw new Error('Employee number is required.');
+  }
+
+  const { data, error } = await supabaseClient
+    .from('employee')
+    .update({ sepdate: null })
+    .eq('empno', normalizedEmpno)
+    .select('empno, lastname, firstname, gender, birthdate, hiredate, sepdate, is_deleted, stamp')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function setEmployeeDeleted(
+  supabaseClient,
+  empno,
+  deleted = true,
+  sessionUser = null
+) {
+  const action = deleted ? 'delete' : 'edit';
+  if (!canManageEmployees(sessionUser, action)) {
+    throw new Error(
+      deleted
+        ? 'You do not have permission to delete employees.'
+        : 'You do not have permission to restore employees.'
+    );
+  }
+
+  const normalizedEmpno = String(empno || '').trim();
+  if (!normalizedEmpno) {
+    throw new Error('Employee number is required.');
+  }
+
+  const { data, error } = await supabaseClient
+    .from('employee')
+    .update({ is_deleted: Boolean(deleted) })
+    .eq('empno', normalizedEmpno)
+    .select('empno, lastname, firstname, gender, birthdate, hiredate, sepdate, is_deleted, stamp')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function restoreEmployee(supabaseClient, empno, sessionUser = null) {
+  return setEmployeeDeleted(supabaseClient, empno, false, sessionUser);
+}
