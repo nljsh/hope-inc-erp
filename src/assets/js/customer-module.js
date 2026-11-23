@@ -66,3 +66,34 @@ export function renderCustomerRows(tbodyEl, customers = []) {
     )
     .join('');
 }
+
+// S2-DEV-03: Customer soft delete and restore
+export function isCustomerDeleted(customer = {}) {
+  const status = String(customer.status || '').trim().toLowerCase();
+  return Boolean(customer.deleted_at || customer.deletedAt || status === 'deleted' || status === 'inactive');
+}
+
+export function softDeleteCustomer(customer = {}, actorId = null) {
+  const timestamp = new Date().toISOString();
+  return {
+    ...customer,
+    status: 'Inactive',
+    is_deleted: true,
+    deleted_at: timestamp,
+    deleted_by: actorId ?? customer.deleted_by ?? null,
+    updated_at: timestamp
+  };
+}
+
+export function restoreCustomer(customer = {}, actorId = null) {
+  const timestamp = new Date().toISOString();
+  return {
+    ...customer,
+    status: 'Active',
+    is_deleted: false,
+    deleted_at: null,
+    deleted_by: null,
+    restored_by: actorId ?? customer.restored_by ?? null,
+    updated_at: timestamp
+  };
+}
