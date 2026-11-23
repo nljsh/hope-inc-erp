@@ -75,7 +75,7 @@
         </article>
       </section>
 
-      <section id="audit-panel" class="ledger-panel" data-panel="audit-stream">
+      <section id="audit-panel" class="ledger-panel" data-panel="ledger-workspace">
         <div class="ledger-panel-header">
           <h2 id="panel-heading">Active Audit Stream</h2>
           <span id="panel-tag" class="ledger-tag">LIVE VIEW</span>
@@ -112,7 +112,6 @@
           return String(directRole).trim().toLowerCase();
         }
 
-        // Fallback: parse trailing role from badge text like "EMAIL · USER" or "EMAIL · ADMIN"
         const badgeText = (operatorBadge?.textContent || '').trim().toLowerCase();
         const parts = badgeText.split('·').map((s) => s.trim());
         const tail = parts[parts.length - 1];
@@ -120,21 +119,16 @@
           return tail;
         }
 
-        // Default to most restrictive role until session-guard confirms elevated role
         return 'user';
       }
 
-      function applyRoleVisibility(moduleName) {
-        const activeModule = (moduleName || 'overview').trim().toLowerCase();
+      function applyRoleVisibility() {
         const role = resolveCurrentRole();
-
-        // Change to `role === 'superadmin'` if you want audit/stamp strictly superadmin-only
         const canViewAudit = role === 'superadmin' || role === 'admin';
 
         if (auditPanel) {
-          const showAudit = activeModule === 'overview' && canViewAudit;
-          auditPanel.hidden = !showAudit;
-          auditPanel.style.display = showAudit ? '' : 'none';
+          auditPanel.hidden = !canViewAudit;
+          auditPanel.style.display = canViewAudit ? '' : 'none';
         }
       }
 
@@ -153,7 +147,7 @@
           card.style.display = show ? '' : 'none';
         });
 
-        applyRoleVisibility(activeModule);
+        applyRoleVisibility();
       }
 
       if (sidebarNav) {
@@ -164,18 +158,15 @@
         });
       }
 
-      // Re-apply once session-guard updates #operator-badge asynchronously
       if (operatorBadge && typeof MutationObserver !== 'undefined') {
         const observer = new MutationObserver(() => {
-          const currentActive = document.querySelector('.sidebar-nav .sidebar-link.active[data-module]');
-          applyRoleVisibility(currentActive ? currentActive.dataset.module : 'overview');
+          applyRoleVisibility();
         });
         observer.observe(operatorBadge, { childList: true, characterData: true, subtree: true });
       }
 
       window.addEventListener('hope:session-ready', () => {
-        const currentActive = document.querySelector('.sidebar-nav .sidebar-link.active[data-module]');
-        applyRoleVisibility(currentActive ? currentActive.dataset.module : 'overview');
+        applyRoleVisibility();
       });
 
       const activeLink = document.querySelector('.sidebar-nav .sidebar-link.active[data-module]');
