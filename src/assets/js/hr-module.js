@@ -1376,3 +1376,106 @@ export function renderJobTimeline(containerEl, timeline = []) {
     </ul>
   `;
 }
+
+// S3-DEV-08: Restrict job history and salary visibility with the View Job History right
+
+export function canViewJobHistory(sessionUser) {
+  if (!sessionUser) return false;
+  const role = String(sessionUser.role || '').toLowerCase();
+  const rights = Array.isArray(sessionUser.permissions) ? sessionUser.permissions : [];
+  return (
+    role === 'superadmin' ||
+    role === 'admin' ||
+    rights.includes('jobhistory.view') ||
+    rights.includes('JobHistory.View') ||
+    rights.includes('job_history.view') ||
+    rights.includes('hr.jobhistory.view') ||
+    rights.includes('hr.salary.view')
+  );
+}
+
+export function sanitizeJobHistoryEntry(entry = {}, sessionUser = null) {
+  const allowed = canViewJobHistory(sessionUser);
+  if (!allowed) {
+    return null;
+  }
+  return { ...entry };
+}
+
+export function sanitizeJobHistoryList(entries = [], sessionUser = null) {
+  if (!canViewJobHistory(sessionUser)) {
+    return [];
+  }
+  return (Array.isArray(entries) ? entries : []).map((item) => ({ ...item }));
+}
+
+export function formatSalaryForDisplay(salary, sessionUser = null, maskedLabel = 'Restricted') {
+  if (!canViewJobHistory(sessionUser)) {
+    return maskedLabel;
+  }
+  const num = Number(salary ?? 0);
+  return Number.isFinite(num) ? num.toFixed(2) : '0.00';
+}
+
+export async function getRestrictedJobHistory(supabaseClient, empno = null, sessionUser = null) {
+  if (!canViewJobHistory(sessionUser)) {
+    return [];
+  }
+  return listJobHistory(supabaseClient, empno);
+}
+
+export async function getRestrictedEmployeeProfile(
+  supabaseClient,
+  empno,
+  sessionUser = null
+) {
+  const profile = await getEmployeeProfile(supabaseClient, empno, sessionUser);
+  const canViewHistory = canViewJobHistory(sessionUser);
+
+  return {
+    ...profile,
+    canViewJobHistory: canViewHistory,
+    timeline: canViewHistory ? profile.timeline : [],
+    currentAssignment: canViewHistory
+      ? profile.currentAssignment
+      : profile.currentAssignment
+        ? {
+            ...profile.currentAssignment,
+            salary: null
+          }
+        : null
+  };
+}
+
+export function renderRestrictedJobHistoryRows(
+  tbodyEl,
+  entries = [],
+  sessionUser = null,
+  { allowManage = false } = {}
+) {
+  if (!tbodyEl) return;
+
+  if (!canViewJobHistory(sessionUser)) {
+    tbodyEl.innerHTML = `
+      <tr>
+        <td colspan="6" class="restricted-state">Job history and salary details require the View Job History permission.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  renderJobHistoryRows(tbodyEl, entries, { allowManage });
+}
+
+export function renderRestrictedJobTimeline(containerEl, timeline = [], sessionUser = null) {
+  if (!containerEl) return;
+
+  if (!canViewJobHistory(sessionUser)) {
+    containerEl.innerHTML = `
+      <p class="restricted-state">Job timeline and salary information are restricted without the View Job History right.</p>
+    `;
+    return;
+  }
+
+  renderJobTimeline(containerEl, timeline);
+}
