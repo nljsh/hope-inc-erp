@@ -1211,3 +1211,168 @@ export async function deleteJobHistoryEntry(supabaseClient, key = {}, sessionUse
   if (error) throw error;
   return data;
 }
+
+// S3-DEV-07: Employee profile with job timeline (permission-checked)
+
+export function buildJobTimeline(entries = [], { order = 'desc' } = {}) {
+  const normalizedOrder = String(order || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
+
+  const enriched = (Array.isArray(entries) ? entries : []).map((row) => {
+    const empno = String(row.empno ?? row.empNo ?? '').trim();
+    const jobcode = String(row.jobcode ?? row.jobCode ?? '').trim().toUpperCase();
+    const jobdesc = String(row.jobdesc ?? row.jobDesc ?? jobcode).trim();
+    const deptcode = String(row.deptcode ?? row.deptCode ?? '').trim().toUpperCase();
+    const deptname = String(row.deptname ?? row.deptName ?? deptcode).trim();
+    const effdate = String(row.effdate ?? row.effDate ?? '').trim();
+    const salaryNum = Number(row.salary ?? 0);
+
+    return {
+      empno,
+      jobcode,
+      jobdesc,
+      deptcode,
+      deptname,
+      effdate,
+      salary: Number.isFinite(salaryNum) ? Number(salaryNum.toFixed(2)) : 0
+    };
+  });
+
+  enriched.sort((a, b) => {
+    const cmp = a.effdate.localeCompare(b.effdate);
+    return normalizedOrder === 'asc' ? cmp : -cmp;
+  });
+
+  return enriched.map((item, idx, arr) => {
+    const chronological = normalizedOrder === 'asc' ? arr : [...arr].reverse();
+    const chronoIdx = chronological.findIndex(
+      (x) => x.effdate === item.effdate && x.jobcode === item.jobcode
+    );
+    const prev = chronoIdx > 0 ? chronological[chronoIdx - 1] : null;
+
+    let movementType = 'Initial Assignment';
+    if (prev) {
+      const deptChanged = prev.deptcode && item.deptcode && prev.deptcode !== item.deptcode;
+      const jobChanged = prev.jobcode && item.jobcode && prev.jobcode !== item.jobcode;
+      const salaryIncreased = item.salary > prev.salary;
+
+      if (deptChanged && !jobChanged) {
+        movementType = 'Transfer';
+      } else if (jobChanged && salaryIncreased) {
+        movementType = 'Promotion';
+      } else if (jobChanged) {
+        movementType = 'Role Change';
+      } else if (salaryIncreased) {
+        movementType = 'Salary Adjustment';
+      } else if (deptChanged) {
+        movementType = 'Department Transfer';
+      } else {
+        movementType = 'Update';
+      }
+    }
+
+    return {
+      ...item,
+      movementType,
+      isCurrent: idx === 0 && normalizedOrder === 'desc'
+    };
+  });
+}
+
+export function getCurrentJobAssignment(entries = []) {
+  const timeline = buildJobTimeline(entries, { order: 'desc' });
+  return timeline[0] || null;
+}
+
+export async function getEmployeeProfile(supabaseClient, empno, sessionUser = null) {
+  if (!canViewEmployees(sessionUser)) {
+    throw new Error('You do not have permission to view employee profiles.');
+  }
+
+  if (!supabaseClient) {
+    throw new Error('Supabase client is required to load employee profile.');
+  }
+
+  const normalizedEmpno = String(empno || '').trim();
+  if (!normalizedEmpno) {
+    throw new Error('Employee number is required.');
+  }
+
+  const { data: employee, error: empError } = await supabaseClient
+    .from('employee')
+    .select('empno, lastname, firstname, gender, birthdate, hiredate, sepdate, is_deleted, stamp')
+    .eq('empno', normalizedEmpno)
+    .single();
+
+  if (empError) throw empError;
+
+  const { data: history, error: histError } = await supabaseClient
+    .from('jobhistory')
+    .select('empno, jobcode, effdate, salary, deptcode')
+    .eq('empno', normalizedEmpno)
+    .order('effdate', { ascending: false });
+
+  if (histError) throw histError;
+
+  const timeline = buildJobTimeline(history || [], { order: 'desc' });
+  const currentAssignment = timeline[0] || null;
+
+  return {
+    employee,
+    currentAssignment,
+    timeline
+  };
+}
+
+export function renderEmployeeProfile(containerEl, profile = {}) {
+  if (!containerEl) return;
+
+  const emp = profile.employee || {};
+  const current = profile.currentAssignment || null;
+  const empno = String(emp.empno ?? emp.empNo ?? '');
+  const fullName = formatEmployeeFullName(emp) || empno;
+  const deleted = isEmployeeDeleted(emp);
+  const separated = isEmployeeSeparated(emp);
+  const statusLabel = deleted ? 'Deleted' : separated ? 'Separated' : 'Active';
+
+  containerEl.innerHTML = `
+    <div class="employee-profile-card" data-empno="${empno}">
+      <h3>${fullName} <span class="emp-id">(${empno})</span></h3>
+      <p><strong>Status:</strong> ${statusLabel}</p>
+      <p><strong>Gender:</strong> ${String(emp.gender || '—').toUpperCase()}</p>
+      <p><strong>Birth Date:</strong> ${emp.birthdate || '—'}</p>
+      <p><strong>Hire Date:</strong> ${emp.hiredate || '—'}</p>
+      <p><strong>Separation Date:</strong> ${emp.sepdate || '—'}</p>
+      <p><strong>Current Role:</strong> ${current ? `${current.jobdesc} (${current.jobcode})` : 'Unassigned'}</p>
+      <p><strong>Current Department:</strong> ${current ? `${current.deptname} (${current.deptcode})` : 'Unassigned'}</p>
+    </div>
+  `;
+}
+
+export function renderJobTimeline(containerEl, timeline = []) {
+  if (!containerEl) return;
+
+  if (!Array.isArray(timeline) || !timeline.length) {
+    containerEl.innerHTML = `<p class="empty-state">No job history timeline entries found.</p>`;
+    return;
+  }
+
+  containerEl.innerHTML = `
+    <ul class="job-timeline-list">
+      ${timeline
+        .map(
+          (item) => `
+        <li class="timeline-item ${item.isCurrent ? 'is-current' : ''}" data-effdate="${item.effdate}" data-jobcode="${item.jobcode}">
+          <div class="timeline-date">${item.effdate}</div>
+          <div class="timeline-body">
+            <strong>${item.movementType}</strong> — ${item.jobdesc} (${item.jobcode})
+            ${item.deptcode ? `<span>• Dept: ${item.deptname || item.deptcode}</span>` : ''}
+            <span>• Salary: ${Number(item.salary || 0).toFixed(2)}</span>
+            ${item.isCurrent ? '<span class="badge-current">Current</span>' : ''}
+          </div>
+        </li>
+      `
+        )
+        .join('')}
+    </ul>
+  `;
+}
