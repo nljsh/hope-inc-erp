@@ -472,3 +472,161 @@ export async function setJobDeleted(supabaseClient, jobcode, deleted = true, ses
   if (error) throw error;
   return data;
 }
+
+// S3-DEV-03: Employee list with search and filter (permission-checked)
+
+export function canViewEmployees(sessionUser) {
+  if (!sessionUser) return false;
+  const role = String(sessionUser.role || '').toLowerCase();
+  const rights = Array.isArray(sessionUser.permissions) ? sessionUser.permissions : [];
+  return (
+    role === 'superadmin' ||
+    role === 'admin' ||
+    rights.includes('employee.view') ||
+    rights.includes('Employee.View') ||
+    rights.includes('hr.view') ||
+    rights.includes('HR.View')
+  );
+}
+
+export function isEmployeeDeleted(employee = {}) {
+  const status = String(employee.status || '').trim().toLowerCase();
+  return Boolean(
+    employee.is_deleted === true ||
+    employee.deleted_at ||
+    employee.deletedAt ||
+    status === 'deleted'
+  );
+}
+
+export function isEmployeeSeparated(employee = {}) {
+  const sep = employee.sepdate ?? employee.sepDate ?? null;
+  const status = String(employee.status || '').trim().toLowerCase();
+  return Boolean(sep || status === 'separated' || status === 'inactive');
+}
+
+export function formatEmployeeFullName(employee = {}) {
+  const first = String(employee.firstname ?? employee.firstName ?? '').trim();
+  const last = String(employee.lastname ?? employee.lastName ?? '').trim();
+  if (last && first) return `${last}, ${first}`;
+  return last || first || '';
+}
+
+export function filterEmployees(
+  employees = [],
+  {
+    query = '',
+    statusFilter = 'active',
+    genderFilter = 'all',
+    deptFilter = 'all'
+  } = {}
+) {
+  const normalizedQuery = String(query || '').trim().toLowerCase();
+  const normalizedStatus = String(statusFilter || 'active').trim().toLowerCase();
+  const normalizedGender = String(genderFilter || 'all').trim().toUpperCase();
+  const normalizedDept = String(deptFilter || 'all').trim().toUpperCase();
+
+  return employees.filter((emp) => {
+    const deleted = isEmployeeDeleted(emp);
+    const separated = isEmployeeSeparated(emp);
+
+    if (normalizedStatus === 'active' && (deleted || separated)) return false;
+    if (normalizedStatus === 'separated' && (deleted || !separated)) return false;
+    if (normalizedStatus === 'deleted' && !deleted) return false;
+
+    const gender = String(emp.gender || '').trim().toUpperCase();
+    if (normalizedGender !== 'ALL' && gender !== normalizedGender) return false;
+
+    const deptCode = String(emp.deptcode ?? emp.deptCode ?? '').trim().toUpperCase();
+    if (normalizedDept !== 'ALL' && deptCode !== normalizedDept) return false;
+
+    if (!normalizedQuery) return true;
+
+    const haystack = [
+      emp.empno,
+      emp.empNo,
+      emp.firstname,
+      emp.firstName,
+      emp.lastname,
+      emp.lastName,
+      formatEmployeeFullName(emp),
+      emp.gender,
+      deptCode,
+      emp.deptname,
+      emp.deptName,
+      emp.jobcode,
+      emp.jobCode,
+      emp.jobdesc,
+      emp.jobDesc
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return haystack.includes(normalizedQuery);
+  });
+}
+
+export function renderEmployeeRows(tbodyEl, employees = [], { allowManage = false } = {}) {
+  if (!tbodyEl) return;
+
+  if (!employees.length) {
+    tbodyEl.innerHTML = `
+      <tr>
+        <td colspan="7" class="empty-state">No matching employees found.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbodyEl.innerHTML = employees
+    .map((emp) => {
+      const empno = String(emp.empno ?? emp.empNo ?? '');
+      const fullName = formatEmployeeFullName(emp);
+      const gender = String(emp.gender || '').toUpperCase();
+      const hireDate = String(emp.hiredate ?? emp.hireDate ?? '');
+      const deptCode = String(emp.deptcode ?? emp.deptCode ?? '');
+      const deleted = isEmployeeDeleted(emp);
+      const separated = isEmployeeSeparated(emp);
+      const statusLabel = deleted ? 'Deleted' : separated ? 'Separated' : 'Active';
+
+      const actionsHtml = allowManage
+        ? `
+          <button type="button" class="btn-view-emp" data-empno="${empno}">View</button>
+          <button type="button" class="btn-edit-emp" data-empno="${empno}">Edit</button>
+        `
+        : `<button type="button" class="btn-view-emp" data-empno="${empno}">View</button>`;
+
+      return `
+        <tr data-empno="${empno}" data-deleted="${deleted}" data-separated="${separated}">
+          <td>${empno}</td>
+          <td>${fullName}</td>
+          <td>${gender}</td>
+          <td>${deptCode || '—'}</td>
+          <td>${hireDate || '—'}</td>
+          <td>${statusLabel}</td>
+          <td class="actions-cell">${actionsHtml}</td>
+        </tr>
+      `;
+    })
+    .join('');
+}
+
+export async function listEmployees(supabaseClient, { includeDeleted = false } = {}) {
+  if (!supabaseClient) {
+    throw new Error('Supabase client is required to list employees.');
+  }
+
+  let query = supabaseClient
+    .from('employee')
+    .select('empno, lastname, firstname, gender, birthdate, hiredate, sepdate, is_deleted, stamp')
+    .order('empno', { ascending: true });
+
+  if (!includeDeleted) {
+    query = query.eq('is_deleted', false);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
