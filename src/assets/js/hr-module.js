@@ -630,3 +630,206 @@ export async function listEmployees(supabaseClient, { includeDeleted = false } =
   if (error) throw error;
   return data || [];
 }
+
+// S3-DEV-04: Employee create and edit form (permission-checked)
+
+export function canManageEmployees(sessionUser, action = 'edit') {
+  if (!sessionUser) return false;
+  const role = String(sessionUser.role || '').toLowerCase();
+  const rights = Array.isArray(sessionUser.permissions) ? sessionUser.permissions : [];
+  const normalizedAction = String(action || '').toLowerCase();
+  const candidates = [
+    `employee.${normalizedAction}`,
+    `Employee.${normalizedAction[0]?.toUpperCase() || ''}${normalizedAction.slice(1)}`,
+    `hr.employee.${normalizedAction}`,
+    `hr.${normalizedAction}`
+  ];
+  return (
+    role === 'superadmin' ||
+    role === 'admin' ||
+    rights.some((r) => candidates.includes(String(r)))
+  );
+}
+
+function isValidIsoDate(value) {
+  if (!value) return false;
+  const str = String(value).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return false;
+  const parsed = new Date(`${str}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === str;
+}
+
+export function validateEmployeePayload(input = {}, { isUpdate = false } = {}) {
+  const errors = {};
+
+  const empno = String(input.empno ?? input.empNo ?? '').trim();
+  const lastname = String(input.lastname ?? input.lastName ?? '').trim();
+  const firstname = String(input.firstname ?? input.firstName ?? '').trim();
+  const gender = String(input.gender ?? '').trim().toUpperCase();
+  const birthdate = String(input.birthdate ?? input.birthDate ?? '').trim();
+  const hiredate = String(input.hiredate ?? input.hireDate ?? '').trim();
+  const rawSepdate = input.sepdate ?? input.sepDate ?? '';
+  const sepdate = rawSepdate === null || rawSepdate === undefined ? '' : String(rawSepdate).trim();
+
+  if (!isUpdate && !empno) {
+    errors.empno = 'Employee number is required.';
+  } else if (empno && empno.length > 5) {
+    errors.empno = 'Employee number must be 5 characters or fewer.';
+  }
+
+  if (!lastname) {
+    errors.lastname = 'Last name is required.';
+  } else if (lastname.length > 15) {
+    errors.lastname = 'Last name must be 15 characters or fewer.';
+  }
+
+  if (!firstname) {
+    errors.firstname = 'First name is required.';
+  } else if (firstname.length > 15) {
+    errors.firstname = 'First name must be 15 characters or fewer.';
+  }
+
+  if (!['M', 'F'].includes(gender)) {
+    errors.gender = 'Gender must be M or F.';
+  }
+
+  if (!isValidIsoDate(birthdate)) {
+    errors.birthdate = 'Valid birth date (YYYY-MM-DD) is required.';
+  }
+
+  if (!isValidIsoDate(hiredate)) {
+    errors.hiredate = 'Valid hire date (YYYY-MM-DD) is required.';
+  }
+
+  if (isValidIsoDate(birthdate) && isValidIsoDate(hiredate) && birthdate >= hiredate) {
+    errors.hiredate = 'Hire date must be after birth date.';
+  }
+
+  if (sepdate) {
+    if (!isValidIsoDate(sepdate)) {
+      errors.sepdate = 'Separation date must be a valid date (YYYY-MM-DD).';
+    } else if (isValidIsoDate(hiredate) && sepdate < hiredate) {
+      errors.sepdate = 'Separation date cannot be earlier than hire date.';
+    }
+  }
+
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors,
+    value: {
+      empno,
+      lastname,
+      firstname,
+      gender,
+      birthdate,
+      hiredate,
+      sepdate: sepdate || null
+    }
+  };
+}
+
+export function readEmployeeFormPayload(formEl) {
+  if (!formEl) return {};
+  const data = new FormData(formEl);
+  return {
+    empno: data.get('empno') ?? '',
+    lastname: data.get('lastname') ?? '',
+    firstname: data.get('firstname') ?? '',
+    gender: data.get('gender') ?? '',
+    birthdate: data.get('birthdate') ?? '',
+    hiredate: data.get('hiredate') ?? '',
+    sepdate: data.get('sepdate') ?? ''
+  };
+}
+
+export function populateEmployeeForm(formEl, employee = null) {
+  if (!formEl) return;
+
+  const setField = (name, val) => {
+    const el = formEl.elements?.[name];
+    if (el) el.value = val ?? '';
+  };
+
+  if (!employee) {
+    formEl.reset();
+    const empnoInput = formEl.elements?.empno;
+    if (empnoInput) empnoInput.readOnly = false;
+    return;
+  }
+
+  setField('empno', employee.empno ?? employee.empNo ?? '');
+  setField('lastname', employee.lastname ?? employee.lastName ?? '');
+  setField('firstname', employee.firstname ?? employee.firstName ?? '');
+  setField('gender', String(employee.gender ?? '').toUpperCase());
+  setField('birthdate', employee.birthdate ?? employee.birthDate ?? '');
+  setField('hiredate', employee.hiredate ?? employee.hireDate ?? '');
+  setField('sepdate', employee.sepdate ?? employee.sepDate ?? '');
+
+  const empnoInput = formEl.elements?.empno;
+  if (empnoInput) empnoInput.readOnly = true;
+}
+
+export async function createEmployee(supabaseClient, payload, sessionUser = null) {
+  if (!canManageEmployees(sessionUser, 'add') && !canManageEmployees(sessionUser, 'create')) {
+    throw new Error('You do not have permission to create employees.');
+  }
+
+  const check = validateEmployeePayload(payload, { isUpdate: false });
+  if (!check.valid) {
+    const err = new Error('Invalid employee form input.');
+    err.validationErrors = check.errors;
+    throw err;
+  }
+
+  const { data, error } = await supabaseClient
+    .from('employee')
+    .insert({
+      empno: check.value.empno,
+      lastname: check.value.lastname,
+      firstname: check.value.firstname,
+      gender: check.value.gender,
+      birthdate: check.value.birthdate,
+      hiredate: check.value.hiredate,
+      sepdate: check.value.sepdate,
+      is_deleted: false
+    })
+    .select('empno, lastname, firstname, gender, birthdate, hiredate, sepdate, is_deleted, stamp')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateEmployee(supabaseClient, empno, payload, sessionUser = null) {
+  if (!canManageEmployees(sessionUser, 'edit')) {
+    throw new Error('You do not have permission to update employees.');
+  }
+
+  const normalizedEmpno = String(empno || '').trim();
+  const check = validateEmployeePayload(
+    { ...payload, empno: normalizedEmpno },
+    { isUpdate: true }
+  );
+  if (!check.valid) {
+    const err = new Error('Invalid employee form input.');
+    err.validationErrors = check.errors;
+    throw err;
+  }
+
+  const { data, error } = await supabaseClient
+    .from('employee')
+    .update({
+      lastname: check.value.lastname,
+      firstname: check.value.firstname,
+      gender: check.value.gender,
+      birthdate: check.value.birthdate,
+      hiredate: check.value.hiredate,
+      sepdate: check.value.sepdate
+    })
+    .eq('empno', normalizedEmpno)
+    .select('empno, lastname, firstname, gender, birthdate, hiredate, sepdate, is_deleted, stamp')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
