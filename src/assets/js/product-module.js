@@ -153,3 +153,69 @@ export function restoreProduct(product = {}, actorId = null) {
     updated_at: timestamp
   };
 }
+
+// S2-DEV-07: Price history: add, edit and delete price with effective date
+export function validatePriceEntry(entry = {}) {
+  const errors = {};
+  const amount = Number(entry.price ?? entry.amount);
+  const effectiveDate = String(entry.effective_date ?? entry.effectiveDate ?? '').trim();
+
+  if (Number.isNaN(amount) || amount <= 0) {
+    errors.price = 'Price must be greater than 0.';
+  }
+
+  if (!effectiveDate || Number.isNaN(Date.parse(effectiveDate))) {
+    errors.effective_date = 'A valid effective date is required.';
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors
+  };
+}
+
+export function addPriceHistoryEntry(history = [], entry = {}, actorId = null) {
+  const now = new Date().toISOString();
+  const newEntry = {
+    id: entry.id ?? ph--,
+    product_id: entry.product_id ?? entry.productId ?? null,
+    price: Number(entry.price ?? entry.amount),
+    currency: String(entry.currency || 'PHP').trim(),
+    effective_date: String(entry.effective_date ?? entry.effectiveDate).trim(),
+    created_by: actorId ?? entry.created_by ?? null,
+    created_at: now,
+    updated_at: now
+  };
+
+  return [...history, newEntry].sort(
+    (a, b) => new Date(b.effective_date) - new Date(a.effective_date)
+  );
+}
+
+export function updatePriceHistoryEntry(history = [], entryId, updates = {}, actorId = null) {
+  const now = new Date().toISOString();
+
+  return history
+    .map((item) => {
+      if (item.id !== entryId) return item;
+      return {
+        ...item,
+        price: updates.price !== undefined || updates.amount !== undefined
+          ? Number(updates.price ?? updates.amount)
+          : item.price,
+        currency: updates.currency !== undefined
+          ? String(updates.currency).trim()
+          : item.currency,
+        effective_date: (updates.effective_date ?? updates.effectiveDate) !== undefined
+          ? String(updates.effective_date ?? updates.effectiveDate).trim()
+          : item.effective_date,
+        updated_by: actorId ?? updates.updated_by ?? null,
+        updated_at: now
+      };
+    })
+    .sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
+}
+
+export function deletePriceHistoryEntry(history = [], entryId) {
+  return history.filter((item) => item.id !== entryId);
+}
