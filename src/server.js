@@ -52,6 +52,14 @@ async function withAuditUser(username, fn) {
   }
 }
 
+app.get('/api/config', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({
+    supabaseUrl: process.env.SUPABASE_URL || '',
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
+  });
+});
+
 app.get('/api/health', async (_req, res) => {
   try {
     const { rows } = await pool.query('SELECT NOW() AS server_time');
