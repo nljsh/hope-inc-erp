@@ -67,14 +67,32 @@ function escapeHtml(value) {
     .replaceAll('"', '&quot;');
 }
 
-function renderTable(container, rows, columns) {
+function normalizeRole(role) {
+  return String(role || 'user').trim().toLowerCase();
+}
+
+function canViewStampForRole(role) {
+  return normalizeRole(role) === 'superadmin';
+}
+
+function getColumnsForRole(columns, role) {
+  const list = Array.isArray(columns) ? columns : [];
+  if (canViewStampForRole(role)) {
+    return list;
+  }
+  return list.filter((col) => String(col).toLowerCase() !== 'stamp');
+}
+
+function renderTable(container, rows, columns, role = 'user') {
   if (!container) return;
+  const visibleColumns = getColumnsForRole(columns, role);
+
   if (!rows || rows.length === 0) {
     container.innerHTML = '<p class="ledger-empty-copy">No records returned for this view yet.</p>';
     return;
   }
 
-  const ths = columns
+  const ths = visibleColumns
     .map(
       (col) =>
         `<th style="text-align:left;padding:0.55rem 0.75rem;border-bottom:1px solid #23252C;color:#9CA3AF;font-size:0.75rem;text-transform:uppercase;">${escapeHtml(col)}</th>`
@@ -84,7 +102,7 @@ function renderTable(container, rows, columns) {
   const trs = rows
     .slice(0, 25)
     .map((row) => {
-      const tds = columns
+      const tds = visibleColumns
         .map(
           (col) =>
             `<td style="padding:0.55rem 0.75rem;border-bottom:1px solid #181A20;font-size:0.82rem;color:#E5E7EB;">${escapeHtml(row[col])}</td>`
@@ -149,8 +167,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (_) {}
 
+  const currentRole = normalizeRole(permState.role);
+  window.currentUser = {
+    email: activeEmail,
+    role: currentRole,
+    role_code: currentRole,
+    rights: permState.rights || [],
+    allowedModules: permState.allowedModules || ['overview'],
+  };
+  try {
+    sessionStorage.setItem('role_code', currentRole);
+  } catch (_) {}
+  window.dispatchEvent(new CustomEvent('hope:session-ready', { detail: window.currentUser }));
+
   if (operatorBadge) {
-    operatorBadge.textContent = `${activeEmail.toUpperCase()} · ${String(permState.role || 'USER').toUpperCase()}`;
+    operatorBadge.textContent = `${activeEmail.toUpperCase()} · ${currentRole.toUpperCase()}`;
   }
 
   // Add Users & Reports nav buttons if allowed
@@ -353,7 +384,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const users = data.users || [];
     const catalog = data.catalog || [];
-    const isSuperadmin = permState.role === 'superadmin';
+    const isSuperadmin = currentRole === 'superadmin';
 
     const roleSelectOptions = isSuperadmin
       ? '<option value="user">user</option><option value="admin">admin</option>'
@@ -532,6 +563,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const cfg = MODULE_CONFIG[moduleKey] || MODULE_CONFIG.overview;
+
+    // Do not query or render audit_log for standard user accounts
+    if (moduleKey === 'overview' && currentRole === 'user') {
+      if (panelHeading) panelHeading.textContent = 'Workspace Summary';
+      if (panelTag) panelTag.textContent = 'USER_VIEW';
+      panelDescription.textContent = 'Select a permitted module from the sidebar to view active records.';
+      tableContainer.innerHTML = '';
+      return;
+    }
+
     if (!supabaseClient) {
       panelDescription.textContent = `${cfg.desc} (Supabase client not initialized.)`;
       tableContainer.innerHTML = '';
@@ -548,7 +589,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     panelDescription.textContent = cfg.desc;
-    renderTable(tableContainer, data, cfg.columns);
+    renderTable(tableContainer, data, cfg.columns, currentRole);
   }
 
   // Populate KPI cards for visible modules

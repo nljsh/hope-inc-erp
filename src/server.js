@@ -20,6 +20,18 @@ const pool = new Pool({
 app.use(express.json());
 app.use(express.static(path.resolve(__dirname, '..')));
 
+function stripStampForNonSuperadmin(rows, roleCode) {
+  const isSuperadmin = String(roleCode || '').trim().toLowerCase() === 'superadmin';
+  if (isSuperadmin) return rows;
+  if (!Array.isArray(rows)) return rows;
+
+  return rows.map((row) => {
+    if (!row || typeof row !== 'object') return row;
+    const { stamp, STAMP, ...cleanRow } = row;
+    return cleanRow;
+  });
+}
+
 async function withAuditUser(username, fn) {
   const client = await pool.connect();
   try {

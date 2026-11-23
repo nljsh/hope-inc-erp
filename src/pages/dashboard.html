@@ -9,6 +9,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../assets/css/styles.css" />
   <link rel="stylesheet" href="../assets/css/dashboard.css" />
+  <style>
+    .kpi-grid[data-active-kpi]:not([data-active-kpi="overview"]) {
+      grid-template-columns: minmax(260px, 420px);
+    }
+  </style>
 </head>
 <body>
   <header class="topbar">
@@ -47,30 +52,30 @@
         </div>
       </div>
 
-      <section class="kpi-grid" aria-label="Module Readiness Summary">
-        <article class="kpi-card">
+      <section class="kpi-grid" aria-label="Module Readiness Summary" data-active-kpi="overview">
+        <article class="kpi-card" data-kpi-module="customers">
           <span class="kpi-label">CUSTOMER LIFECYCLES</span>
           <strong id="kpi-customers" class="kpi-value">--</strong>
           <p class="kpi-meta">Active rows in customer_active</p>
         </article>
-        <article class="kpi-card">
+        <article class="kpi-card" data-kpi-module="products">
           <span class="kpi-label">PRODUCT CATALOG</span>
           <strong id="kpi-products" class="kpi-value">--</strong>
           <p class="kpi-meta">Active rows in product_active</p>
         </article>
-        <article class="kpi-card">
+        <article class="kpi-card" data-kpi-module="employees">
           <span class="kpi-label">EMPLOYEE REGISTRIES</span>
           <strong id="kpi-employees" class="kpi-value">--</strong>
           <p class="kpi-meta">Active rows in employee_active</p>
         </article>
-        <article class="kpi-card">
+        <article class="kpi-card" data-kpi-module="sales">
           <span class="kpi-label">SALES LEDGERS</span>
           <strong id="kpi-sales" class="kpi-value">--</strong>
           <p class="kpi-meta">Transactions in sales</p>
         </article>
       </section>
 
-      <section class="ledger-panel">
+      <section id="audit-panel" class="ledger-panel" data-panel="audit-stream">
         <div class="ledger-panel-header">
           <h2 id="panel-heading">Active Audit Stream</h2>
           <span id="panel-tag" class="ledger-tag">LIVE VIEW</span>
@@ -86,5 +91,96 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../config/env.local.js"></script>
   <script type="module" src="../assets/js/session-guard.js"></script>
+  <script>
+    (function () {
+      const kpiGrid = document.querySelector('.kpi-grid');
+      const cards = Array.from(document.querySelectorAll('.kpi-grid .kpi-card[data-kpi-module]'));
+      const sidebarNav = document.querySelector('.sidebar-nav');
+      const auditPanel = document.getElementById('audit-panel');
+      const operatorBadge = document.getElementById('operator-badge');
+
+      function resolveCurrentRole() {
+        const directRole =
+          window.currentUser?.role_code ||
+          window.currentUser?.role ||
+          sessionStorage.getItem('role_code') ||
+          sessionStorage.getItem('hope_role_code') ||
+          localStorage.getItem('role_code') ||
+          localStorage.getItem('hope_role_code');
+
+        if (directRole) {
+          return String(directRole).trim().toLowerCase();
+        }
+
+        // Fallback: parse trailing role from badge text like "EMAIL · USER" or "EMAIL · ADMIN"
+        const badgeText = (operatorBadge?.textContent || '').trim().toLowerCase();
+        const parts = badgeText.split('·').map((s) => s.trim());
+        const tail = parts[parts.length - 1];
+        if (['superadmin', 'admin', 'user'].includes(tail)) {
+          return tail;
+        }
+
+        // Default to most restrictive role until session-guard confirms elevated role
+        return 'user';
+      }
+
+      function applyRoleVisibility(moduleName) {
+        const activeModule = (moduleName || 'overview').trim().toLowerCase();
+        const role = resolveCurrentRole();
+
+        // Change to `role === 'superadmin'` if you want audit/stamp strictly superadmin-only
+        const canViewAudit = role === 'superadmin' || role === 'admin';
+
+        if (auditPanel) {
+          const showAudit = activeModule === 'overview' && canViewAudit;
+          auditPanel.hidden = !showAudit;
+          auditPanel.style.display = showAudit ? '' : 'none';
+        }
+      }
+
+      function applyModuleKpiVisibility(moduleName) {
+        const activeModule = (moduleName || 'overview').trim().toLowerCase();
+        const isOverview = activeModule === 'overview';
+
+        if (kpiGrid) {
+          kpiGrid.dataset.activeKpi = activeModule;
+        }
+
+        cards.forEach((card) => {
+          const cardModule = (card.dataset.kpiModule || '').trim().toLowerCase();
+          const show = isOverview || cardModule === activeModule;
+          card.hidden = !show;
+          card.style.display = show ? '' : 'none';
+        });
+
+        applyRoleVisibility(activeModule);
+      }
+
+      if (sidebarNav) {
+        sidebarNav.addEventListener('click', (event) => {
+          const link = event.target.closest('.sidebar-link[data-module]');
+          if (!link) return;
+          applyModuleKpiVisibility(link.dataset.module);
+        });
+      }
+
+      // Re-apply once session-guard updates #operator-badge asynchronously
+      if (operatorBadge && typeof MutationObserver !== 'undefined') {
+        const observer = new MutationObserver(() => {
+          const currentActive = document.querySelector('.sidebar-nav .sidebar-link.active[data-module]');
+          applyRoleVisibility(currentActive ? currentActive.dataset.module : 'overview');
+        });
+        observer.observe(operatorBadge, { childList: true, characterData: true, subtree: true });
+      }
+
+      window.addEventListener('hope:session-ready', () => {
+        const currentActive = document.querySelector('.sidebar-nav .sidebar-link.active[data-module]');
+        applyRoleVisibility(currentActive ? currentActive.dataset.module : 'overview');
+      });
+
+      const activeLink = document.querySelector('.sidebar-nav .sidebar-link.active[data-module]');
+      applyModuleKpiVisibility(activeLink ? activeLink.dataset.module : 'overview');
+    })();
+  </script>
 </body>
 </html>
