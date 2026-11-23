@@ -122,3 +122,34 @@ export function populateProductForm(formEl, product = {}) {
   setField('[name="unit"]', product.unit ?? '');
   setField('[name="status"]', product.status ?? 'Active');
 }
+
+// S2-DEV-06: Product soft delete and restore
+export function isProductDeleted(product = {}) {
+  const status = String(product.status || '').trim().toLowerCase();
+  return Boolean(product.deleted_at || product.deletedAt || status === 'deleted' || status === 'inactive');
+}
+
+export function softDeleteProduct(product = {}, actorId = null) {
+  const timestamp = new Date().toISOString();
+  return {
+    ...product,
+    status: 'Inactive',
+    is_deleted: true,
+    deleted_at: timestamp,
+    deleted_by: actorId ?? product.deleted_by ?? null,
+    updated_at: timestamp
+  };
+}
+
+export function restoreProduct(product = {}, actorId = null) {
+  const timestamp = new Date().toISOString();
+  return {
+    ...product,
+    status: 'Active',
+    is_deleted: false,
+    deleted_at: null,
+    deleted_by: null,
+    restored_by: actorId ?? product.restored_by ?? null,
+    updated_at: timestamp
+  };
+}
