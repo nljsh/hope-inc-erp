@@ -41,7 +41,7 @@
         <div>
           <div class="status-pill">
             <span class="status-dot"></span>
-            <span>CORE ENGINE &middot; AWAITING POSTGRESQL BINDING</span>
+            <span id="engine-status">CORE ENGINE &middot; LIVE POSTGRESQL VIEW BINDING</span>
           </div>
           <h1 id="module-title" class="workspace-title">Executive <em>Overview.</em></h1>
         </div>
@@ -50,34 +50,35 @@
       <section class="kpi-grid" aria-label="Module Readiness Summary">
         <article class="kpi-card">
           <span class="kpi-label">CUSTOMER LIFECYCLES</span>
-          <strong class="kpi-value">Schema Pending</strong>
-          <p class="kpi-meta">Awaiting S1-DB table provisioning</p>
+          <strong id="kpi-customers" class="kpi-value">--</strong>
+          <p class="kpi-meta">Active rows in customer_active</p>
         </article>
         <article class="kpi-card">
           <span class="kpi-label">PRODUCT CATALOG</span>
-          <strong class="kpi-value">Schema Pending</strong>
-          <p class="kpi-meta">Awaiting S1-DB table provisioning</p>
+          <strong id="kpi-products" class="kpi-value">--</strong>
+          <p class="kpi-meta">Active rows in product_active</p>
         </article>
         <article class="kpi-card">
           <span class="kpi-label">EMPLOYEE REGISTRIES</span>
-          <strong class="kpi-value">Schema Pending</strong>
-          <p class="kpi-meta">Awaiting S1-DB table provisioning</p>
+          <strong id="kpi-employees" class="kpi-value">--</strong>
+          <p class="kpi-meta">Active rows in employee_active</p>
         </article>
         <article class="kpi-card">
           <span class="kpi-label">SALES LEDGERS</span>
-          <strong class="kpi-value">Schema Pending</strong>
-          <p class="kpi-meta">Awaiting S1-DB table provisioning</p>
+          <strong id="kpi-sales" class="kpi-value">--</strong>
+          <p class="kpi-meta">Transactions in sales</p>
         </article>
       </section>
 
       <section class="ledger-panel">
         <div class="ledger-panel-header">
           <h2 id="panel-heading">Active Audit Stream</h2>
-          <span class="ledger-tag">READ-ONLY SHELL</span>
+          <span id="panel-tag" class="ledger-tag">LIVE VIEW</span>
         </div>
         <p id="panel-description" class="ledger-empty-copy">
-          Session guard active. Once the Database Administrator completes the PostgreSQL schema and Row-Level Security policies in Supabase, live CRUD records will mount directly into this workspace.
+          Session guard active. Loading live records from the Hope Enterprise PostgreSQL schema.
         </p>
+        <div id="data-table-container" style="margin-top: 1rem; overflow-x: auto;"></div>
       </section>
     </main>
   </div>
