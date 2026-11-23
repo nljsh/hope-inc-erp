@@ -347,8 +347,11 @@ function createAdminRouter({ pool, withAuditUser }) {
       if (!email || !firstName) {
         return res.status(400).json({ ok: false, error: 'Email and name are required.' });
       }
-      if (requestedRole === 'superadmin') {
-        return res.status(403).json({ ok: false, error: 'Cannot assign superadmin role via Add User.' });
+      if (!['superadmin', 'admin', 'user'].includes(requestedRole)) {
+        return res.status(400).json({ ok: false, error: 'Invalid role.' });
+      }
+      if (requestedRole === 'superadmin' && req.actor.role_code !== 'superadmin') {
+        return res.status(403).json({ ok: false, error: 'Only Superadmin can assign superadmin role.' });
       }
       if (req.actor.role_code !== 'superadmin' && requestedRole !== 'user') {
         return res.status(403).json({ ok: false, error: 'Admin can only add standard user accounts.' });
@@ -647,3 +650,6 @@ function createAdminRouter({ pool, withAuditUser }) {
 }
 
 module.exports = { createAdminRouter, MODULES, ALL_RIGHTS };
+```[cite: 12]
+
+Save `src/routes/admin.js`, commit, and push along with your `session-guard.js` and `dashboard.html` updates. Ready to test everything or set up Render + Google OAuth next?

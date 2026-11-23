@@ -387,7 +387,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isSuperadmin = currentRole === 'superadmin';
 
     const roleSelectOptions = isSuperadmin
-      ? '<option value="user">user</option><option value="admin">admin</option>'
+      ? '<option value="user">user</option><option value="admin">admin</option><option value="superadmin">superadmin</option>'
       : '<option value="user">user</option>';
 
     const addFormHtml = `
@@ -403,6 +403,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div id="um-feedback" style="font-size:0.8rem;margin-bottom:0.75rem;color:#6EE7B7;"></div>
     `;
 
+    const roleLabels = {
+      superadmin: 'Make Superadmin',
+      admin: 'Make Admin',
+      user: 'Make User',
+    };
+
     const rowsHtml = users
       .map((u) => {
         const isBlocked = Boolean(u.blocked || u.status === 'blocked');
@@ -414,7 +420,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             : '';
 
         const roleBtn = isSuperadmin
-          ? `<button type="button" class="um-role-btn" data-id="${u.user_id}" data-role="${escapeHtml(u.role)}" style="padding:0.25rem 0.5rem;font-size:0.75rem;border-radius:5px;border:1px solid #374151;background:#1F2937;color:#F9FAFB;cursor:pointer;">${u.role === 'admin' ? 'Make User' : 'Make Admin'}</button>`
+          ? ['superadmin', 'admin', 'user']
+              .filter((r) => r !== u.role)
+              .map(
+                (targetRole) =>
+                  `<button type="button" class="um-role-btn" data-id="${u.user_id}" data-role="${targetRole}" style="padding:0.25rem 0.5rem;font-size:0.75rem;border-radius:5px;border:1px solid #374151;background:#1F2937;color:#F9FAFB;cursor:pointer;">${roleLabels[targetRole]}</button>`
+              )
+              .join('')
           : '';
 
         const blockBtn = `<button type="button" class="um-block-btn" data-id="${u.user_id}" data-blocked="${isBlocked ? '1' : '0'}" style="padding:0.25rem 0.5rem;font-size:0.75rem;border-radius:5px;border:1px solid #374151;background:#1F2937;color:#F9FAFB;cursor:pointer;">${isBlocked ? 'Unblock' : 'Block'}</button>`;
@@ -500,7 +512,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     tableContainer.querySelectorAll('.um-role-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        const nextRole = btn.dataset.role === 'admin' ? 'user' : 'admin';
+        const nextRole = btn.dataset.role;
+        if (!nextRole) return;
         const r = await fetch(`/api/admin/users/${btn.dataset.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', 'x-actor-email': activeEmail },
