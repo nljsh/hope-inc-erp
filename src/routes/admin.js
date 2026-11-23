@@ -652,4 +652,3 @@ function createAdminRouter({ pool, withAuditUser }) {
 module.exports = { createAdminRouter, MODULES, ALL_RIGHTS };
 ```[cite: 12]
 
-Save `src/routes/admin.js`, commit, and push along with your `session-guard.js` and `dashboard.html` updates. Ready to test everything or set up Render + Google OAuth next?
