@@ -1,5 +1,4 @@
-﻿const crypto = require('crypto');
-const express = require('express');
+﻿const express = require('express');
 
 const MODULES = [
   {
@@ -105,12 +104,6 @@ function normalizeRightKey(key) {
     'report.top_sales': 'reports.top_sales',
   };
   return aliases[k] || k;
-}
-
-function hashPassword(password) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const derived = crypto.scryptSync(String(password), salt, 64).toString('hex');
-  return `${salt}:${derived}`;
 }
 
 function splitFullName(fullName, fallbackFirst = 'Operator', fallbackLast = 'User') {
@@ -328,64 +321,6 @@ function createAdminRouter({ pool, withAuditUser }) {
     }
   });
 
-  // S1-DEV-05 & S1-DEV-06: Add User
-  router.post('/users', requireStaff, async (req, res) => {
-    try {
-      const email = String(req.body.email || '').trim().toLowerCase();
-      const rawFullName = req.body.full_name || req.body.fullName || '';
-      const { firstName, lastName } = splitFullName(
-        rawFullName,
-        String(req.body.first_name || 'Operator').trim() || 'Operator',
-        String(req.body.last_name || 'User').trim() || 'User'
-      );
-      const password = String(req.body.password || 'HopeTemp123!');
-      const requestedRole = String(req.body.role || req.body.role_code || 'user').trim().toLowerCase();
-      const requestedStatus = String(req.body.status || req.body.account_status || 'active')
-        .trim()
-        .toLowerCase();
-
-      if (!email || !firstName) {
-        return res.status(400).json({ ok: false, error: 'Email and name are required.' });
-      }
-      if (!['superadmin', 'admin', 'user'].includes(requestedRole)) {
-        return res.status(400).json({ ok: false, error: 'Invalid role.' });
-      }
-      if (requestedRole === 'superadmin' && req.actor.role_code !== 'superadmin') {
-        return res.status(403).json({ ok: false, error: 'Only Superadmin can assign superadmin role.' });
-      }
-      if (req.actor.role_code !== 'superadmin' && requestedRole !== 'user') {
-        return res.status(403).json({ ok: false, error: 'Admin can only add standard user accounts.' });
-      }
-
-      const safeStatus = ['pending', 'active', 'blocked', 'disapproved'].includes(requestedStatus)
-        ? requestedStatus
-        : 'active';
-      const isBlocked = safeStatus === 'blocked';
-
-      const dup = await pool.query(
-        'SELECT user_id FROM public.app_user WHERE LOWER(email) = LOWER($1) AND NOT is_deleted',
-        [email]
-      );
-      if (dup.rows.length > 0) {
-        return res.status(409).json({ ok: false, error: 'User with this email already exists.' });
-      }
-
-      const { rows } = await withAuditUser(req.actor.email, async (client) =>
-        client.query(
-          `INSERT INTO public.app_user (email, first_name, last_name, password_hash, role_code, account_status, is_blocked)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
-           RETURNING user_id, email, first_name, last_name, role_code, account_status, is_blocked, created_at`,
-          [email, firstName, lastName, hashPassword(password), requestedRole, safeStatus, isBlocked]
-        )
-      );
-
-      res.status(201).json({ ok: true, user: formatUserRow(rows[0]) });
-    } catch (err) {
-      console.error('POST /users error:', err);
-      res.status(500).json({ ok: false, error: 'Failed to create user.' });
-    }
-  });
-
   // S1-DEV-05 & S1-DEV-06: Edit / Approve / Designate Admin / Block-Unblock + Last-Superadmin Guard
   router.patch('/users/:id', requireStaff, async (req, res) => {
     const targetId = Number(req.params.id);
@@ -600,7 +535,9 @@ function createAdminRouter({ pool, withAuditUser }) {
 
       await withAuditUser(req.actor.email, async (client) => {
         for (const [rightId, meta] of catalogue.byId.entries()) {
-          const shouldGrant = requestedNormalized.has(meta.key) || requestedNormalized.has(String(meta.perm_key || '').toLowerCase());
+          const shouldGrant =
+            requestedNormalized.has(meta.key) ||
+            requestedNormalized.has(String(meta.perm_key || '').toLowerCase());
 
           const existing = await client.query(
             `SELECT user_perm_id
@@ -650,5 +587,3 @@ function createAdminRouter({ pool, withAuditUser }) {
 }
 
 module.exports = { createAdminRouter, MODULES, ALL_RIGHTS };
-```[cite: 12]
-
