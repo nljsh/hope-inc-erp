@@ -88,7 +88,9 @@
             <div class="field-group">
               <div class="label-row">
                 <label for="signin-password">PASSWORD</label>
-                <a href="#forgot" class="forgot-link">Forgot password?</a>
+                <a href="#forgot" id="forgot-password-link" class="forgot-link"
+                  >Forgot password?</a
+                >
               </div>
               <input
                 type="password"
@@ -98,6 +100,11 @@
                 required
               />
             </div>
+
+            <div
+              id="forgot-feedback"
+              style="font-size: 0.82rem; margin-bottom: 0.65rem; min-height: 1.1rem;"
+            ></div>
 
             <button type="submit" class="btn-primary">Authenticate</button>
 
@@ -172,5 +179,54 @@
     <script src="src/config/env.local.js"></script>
     <script src="src/assets/js/ui-auth-tabs.js"></script>
     <script type="module" src="src/assets/js/auth-service.js"></script>
+    <script type="module">
+      import { supabaseClient } from './src/config/supabaseClient.js';
+
+      const forgotLink = document.getElementById('forgot-password-link');
+      const emailInput = document.getElementById('signin-email');
+      const feedbackEl = document.getElementById('forgot-feedback');
+
+      function showForgotMsg(text, isError = false) {
+        if (!feedbackEl) return;
+        feedbackEl.style.color = isError ? '#FCA5A5' : '#6EE7B7';
+        feedbackEl.textContent = text;
+      }
+
+      if (forgotLink) {
+        forgotLink.addEventListener('click', async (event) => {
+          event.preventDefault();
+
+          let email = (emailInput?.value || '').trim().toLowerCase();
+          if (!email) {
+            email = (window.prompt('Enter your email address to reset your password:') || '')
+              .trim()
+              .toLowerCase();
+            if (email && emailInput) emailInput.value = email;
+          }
+
+          if (!email) {
+            showForgotMsg('Please enter your email address first.', true);
+            return;
+          }
+
+          if (!supabaseClient) {
+            showForgotMsg('Supabase client is not initialized.', true);
+            return;
+          }
+
+          showForgotMsg('Sending password reset email...');
+          const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/reset-password.html`,
+          });
+
+          if (error) {
+            showForgotMsg(error.message || 'Could not send reset email.', true);
+            return;
+          }
+
+          showForgotMsg(`Password reset link sent to ${email}. Check your inbox or spam folder.`);
+        });
+      }
+    </script>
   </body>
 </html>
